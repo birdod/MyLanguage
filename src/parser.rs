@@ -1,7 +1,7 @@
 #![allow(dead_code)]
 mod parser_test;
 
-use std::mem::swap;
+use std::{mem::swap, process::Termination};
 use crate::{ast::{self, Expression}, lexer, token};
 
 
@@ -40,10 +40,24 @@ impl Parser {
                     _ => return None
                 }
             }
+            token::RETURN => {
+                let temp = self.parse_returnstatement();
+                match temp {
+                    Some(x) => return Some(ast::Statement::ReturnStatement(x)),
+                    _ => return None
+                }
+            }
             _ => return None
         }
     }
-
+    fn parse_returnstatement(&mut self) -> Option<ast::ReturnStatement> {
+        let stmt = ast::ReturnStatement{token: self.cur_token.clone(), return_value:Expression::Temp};
+        self.next_token();
+        while !self.cur_token_is(token::SEMICOLON.to_string()){
+            self.next_token();
+        }
+        Some(stmt)
+    }
     fn parse_letstatemnet(&mut self) -> Option<ast::LetStatement>{
         let tok = self.cur_token.clone();
         if !self.expect_peek(token::IDENT.to_string()) {

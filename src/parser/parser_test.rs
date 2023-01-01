@@ -33,7 +33,6 @@ fn test_let_statements() {
 	}
 }
 
-
 fn test_let_statement(s: &ast::Statement, name: String) -> bool {
 	if s.token_literal() != "let" {
 		println!("s.TokenLiteral not 'let'. got={}", s.token_literal());
@@ -58,6 +57,36 @@ fn test_let_statement(s: &ast::Statement, name: String) -> bool {
         }
     }
 }
+#[test]
+fn test_return_statements() {
+	let input =
+    "
+        return 5;
+        return 10;
+    ";
+
+    let l = lexer::Lexer::new(input.to_string());
+    let mut p = Parser::new(l);
+    let program = p.parse_program();
+	check_parser_error(&p);
+
+    if program.statements.len() != 2 {
+        panic!("program.Statements does not contain 2 statements. got={}",
+            program.statements.len());
+    }
+	for stmt in program.statements {
+		if stmt.token_literal() != "return" {
+			println!("s.TokenLiteral not 'return'. got={}", stmt.token_literal());
+			return
+		}
+		match stmt {
+			Statement::ReturnStatement(_) => (),
+			_ => {
+				println!("s not *ast.ReturnStatement");
+			}
+		}
+	}
+}
 
 fn check_parser_error(p: &Parser) {
 	let errors = p.errors();
@@ -73,18 +102,6 @@ fn check_parser_error(p: &Parser) {
 }
 
 
-// func checkParserErrors(t *testing.T, p *Parser) {
-// 	errors := p.Errors()
-// 	if len(errors) == 0 {
-// 		return
-// 	}
-
-// 	t.Errorf("parser has %d errors", len(errors))
-// 	for _, msg := range errors {
-// 		t.Errorf("parser error: %q", msg)
-// 	}
-// 	t.FailNow()
-// }
 
 /*
 func TestReturnStatements(t *testing.T) {

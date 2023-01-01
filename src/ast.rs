@@ -10,9 +10,14 @@ pub struct LetStatement {
     pub name: Identifier,
     pub value: Expression
 }
+pub struct ReturnStatement {
+    pub token: token::Token,
+    pub return_value: Expression
+}
 
 pub enum Statement {
-    LetStatement(LetStatement)
+    LetStatement(LetStatement),
+    ReturnStatement(ReturnStatement)
 }
 
 pub enum Expression {
@@ -27,11 +32,11 @@ pub struct Identifier {
 impl Node for Statement {
     fn token_literal(&self) -> String {
         match self {
-            Statement::LetStatement(x) => x.token.literal.clone()
+            Statement::LetStatement(x) => x.token.literal.clone(),
+            Statement::ReturnStatement(x) => x.token.literal.clone()
         }
     }
 }
-
 
 impl Node for Identifier {
     fn token_literal(&self) -> String {
