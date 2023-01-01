@@ -8,8 +8,17 @@ pub struct Token {
 }
 
 impl Token {
+    pub fn empty_token() -> Token {
+        return Token{r#type: EOF.to_string(), literal: "".to_string()}
+    }
     pub fn new_token(token_type: TokenType, ch: char) -> Token {
         return Token{r#type: token_type, literal: ch.to_string()}
+    }
+}
+
+impl Clone for Token {
+    fn clone(&self) -> Token {
+        Token{r#type: self.r#type.clone(), literal: self.literal.clone()}
     }
 }
 
