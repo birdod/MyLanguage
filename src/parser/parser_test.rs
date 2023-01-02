@@ -1,4 +1,4 @@
-#![allow(dead_code)]
+#![allow(dead_code, unused_imports)]
 
 #[cfg(test)]
 use core::panic;
@@ -100,152 +100,129 @@ fn check_parser_error(p: &Parser) {
 	}
 	panic!("error end")
 }
+#[test]
+fn test_identifier_expression() {
+	let input = "foobar;";
+	let l = lexer::Lexer::new(input.to_string());
+	let mut p = Parser::new(l);
+	let program = p.parse_program();
+	check_parser_error(&p);
 
+	if program.statements.len() != 1 {
+		println!("program has not enough statements. got={}",
+			program.statements.len())
+	}
 
+	match &program.statements[0] {
+		Statement::ExpressionStatement(es) => {
+			match &es.expression {
+				Expression::Identifier(ident) => {
+					if ident.value != "foobar" {
+						println!("ident.Value not {}. got={}", "foobar", ident.value)
+					}
+					if es.expression.token_literal() != "foobar" {
+						println!("ident.TokenLiteral not {}. got={}", "foobar",
+							ident.token_literal())
+					}
+				}
+				_ => println!("exp not *ast.Identifier.")
+			}
+		} 
+		_ => println!("program.Statements[0] is not ast.ExpressionStatement.")
+	}
+}
+#[test]
+fn test_integer_literal_expression() {
+	let input = "5;";
+	let l = lexer::Lexer::new(input.to_string());
+	let mut p = Parser::new(l);
+	let program = p.parse_program();
+	check_parser_error(&p);
 
+	if program.statements.len() != 1 {
+		println!("program has not enough statements. got={}",
+			program.statements.len())
+	}
+
+	match &program.statements[0] {
+		Statement::ExpressionStatement(es) => {
+			match &es.expression {
+				Expression::IntegerLiteral(literal) => {
+					if literal.value != 5 {
+						println!("literal.Value not {}. got={}", 5, literal.value)
+					}
+					if es.expression.token_literal() != "5" {
+						println!("literal.TokenLiteral not {}. got={}", "5",
+							es.expression.token_literal())
+					}
+				}
+				_ => println!("exp not *ast.IntegerLiteral.")
+			}
+		} 
+		_ => println!("program.Statements[0] is not ast.ExpressionStatement.")
+	}
+}
+
+#[test]
+fn test_parsing_prefix_expression() {
+	let prefix_tests = [
+		("!5;", "!", 5),
+		("-15;", "-", 15),
+	];
+
+	for (input, operator, value) in prefix_tests{
+		let l = lexer::Lexer::new(input.to_string());
+		let mut p = Parser::new(l);
+		let program = p.parse_program();
+		check_parser_error(&p);
+
+		if program.statements.len() != 1 {
+			panic!("program.Statements does not contain {} statements. got={}\n",
+				1, program.statements.len())
+		}
+		match &program.statements[0] {
+			Statement::ExpressionStatement(es) => {
+				match &es.expression {
+					Expression::PrefixExpression(pe) => {
+						if pe.operator != operator {
+							panic!("exp.Operator is not '{}'. got={}",
+								operator, pe.operator)
+						}
+						if !test_integer_literal(&pe.right, value) {
+							return
+						}
+					}
+					_ => panic!("stmt is not ast.PrefixExpression.")
+				}
+			}
+			_ => panic!("program.Statements[0] is not ast.ExpressionStatement.")
+		} 
+	}
+}
+fn test_integer_literal(e: &Expression, value: i32) -> bool {
+	match &e {
+		Expression::IntegerLiteral(il) => {
+			if il.value != value {
+				println!("integ.Value not {}. got={}", value, il.value);
+				return false
+			}
+		
+			if e.token_literal() != value.to_string() {
+				println!("integ.TokenLiteral not {}. got={}", value,
+					e.token_literal());
+				return false
+			}
+			return true
+		}
+		_ => {
+			println!("il not *ast.IntegerLiteral");
+			return false
+		}
+	}
+
+}
 /*
-func TestReturnStatements(t *testing.T) {
-	tests := []struct {
-		input         string
-		expectedValue interface{}
-	}{
-		{"return 5;", 5},
-		{"return true;", true},
-		{"return foobar;", "foobar"},
-	}
 
-	for _, tt := range tests {
-		l := lexer.New(tt.input)
-		p := New(l)
-		program := p.ParseProgram()
-		checkParserErrors(t, p)
-
-		if len(program.Statements) != 1 {
-			t.Fatalf("program.Statements does not contain 1 statements. got=%d",
-				len(program.Statements))
-		}
-
-		stmt := program.Statements[0]
-		returnStmt, ok := stmt.(*ast.ReturnStatement)
-		if !ok {
-			t.Fatalf("stmt not *ast.returnStatement. got=%T", stmt)
-		}
-		if returnStmt.TokenLiteral() != "return" {
-			t.Fatalf("returnStmt.TokenLiteral not 'return', got %q",
-				returnStmt.TokenLiteral())
-		}
-		if testLiteralExpression(t, returnStmt.ReturnValue, tt.expectedValue) {
-			return
-		}
-	}
-}
-
-func TestIdentifierExpression(t *testing.T) {
-	input := "foobar;"
-
-	l := lexer.New(input)
-	p := New(l)
-	program := p.ParseProgram()
-	checkParserErrors(t, p)
-
-	if len(program.Statements) != 1 {
-		t.Fatalf("program has not enough statements. got=%d",
-			len(program.Statements))
-	}
-	stmt, ok := program.Statements[0].(*ast.ExpressionStatement)
-	if !ok {
-		t.Fatalf("program.Statements[0] is not ast.ExpressionStatement. got=%T",
-			program.Statements[0])
-	}
-
-	ident, ok := stmt.Expression.(*ast.Identifier)
-	if !ok {
-		t.Fatalf("exp not *ast.Identifier. got=%T", stmt.Expression)
-	}
-	if ident.Value != "foobar" {
-		t.Errorf("ident.Value not %s. got=%s", "foobar", ident.Value)
-	}
-	if ident.TokenLiteral() != "foobar" {
-		t.Errorf("ident.TokenLiteral not %s. got=%s", "foobar",
-			ident.TokenLiteral())
-	}
-}
-
-func TestIntegerLiteralExpression(t *testing.T) {
-	input := "5;"
-
-	l := lexer.New(input)
-	p := New(l)
-	program := p.ParseProgram()
-	checkParserErrors(t, p)
-
-	if len(program.Statements) != 1 {
-		t.Fatalf("program has not enough statements. got=%d",
-			len(program.Statements))
-	}
-	stmt, ok := program.Statements[0].(*ast.ExpressionStatement)
-	if !ok {
-		t.Fatalf("program.Statements[0] is not ast.ExpressionStatement. got=%T",
-			program.Statements[0])
-	}
-
-	literal, ok := stmt.Expression.(*ast.IntegerLiteral)
-	if !ok {
-		t.Fatalf("exp not *ast.IntegerLiteral. got=%T", stmt.Expression)
-	}
-	if literal.Value != 5 {
-		t.Errorf("literal.Value not %d. got=%d", 5, literal.Value)
-	}
-	if literal.TokenLiteral() != "5" {
-		t.Errorf("literal.TokenLiteral not %s. got=%s", "5",
-			literal.TokenLiteral())
-	}
-}
-
-func TestParsingPrefixExpressions(t *testing.T) {
-	prefixTests := []struct {
-		input    string
-		operator string
-		value    interface{}
-	}{
-		{"!5;", "!", 5},
-		{"-15;", "-", 15},
-		{"!foobar;", "!", "foobar"},
-		{"-foobar;", "-", "foobar"},
-		{"!true;", "!", true},
-		{"!false;", "!", false},
-	}
-
-	for _, tt := range prefixTests {
-		l := lexer.New(tt.input)
-		p := New(l)
-		program := p.ParseProgram()
-		checkParserErrors(t, p)
-
-		if len(program.Statements) != 1 {
-			t.Fatalf("program.Statements does not contain %d statements. got=%d\n",
-				1, len(program.Statements))
-		}
-
-		stmt, ok := program.Statements[0].(*ast.ExpressionStatement)
-		if !ok {
-			t.Fatalf("program.Statements[0] is not ast.ExpressionStatement. got=%T",
-				program.Statements[0])
-		}
-
-		exp, ok := stmt.Expression.(*ast.PrefixExpression)
-		if !ok {
-			t.Fatalf("stmt is not ast.PrefixExpression. got=%T", stmt.Expression)
-		}
-		if exp.Operator != tt.operator {
-			t.Fatalf("exp.Operator is not '%s'. got=%s",
-				tt.operator, exp.Operator)
-		}
-		if !testLiteralExpression(t, exp.Right, tt.value) {
-			return
-		}
-	}
-}
 
 func TestParsingInfixExpressions(t *testing.T) {
 	infixTests := []struct {
@@ -779,26 +756,7 @@ func testLiteralExpression(
 	return false
 }
 
-func testIntegerLiteral(t *testing.T, il ast.Expression, value int64) bool {
-	integ, ok := il.(*ast.IntegerLiteral)
-	if !ok {
-		t.Errorf("il not *ast.IntegerLiteral. got=%T", il)
-		return false
-	}
 
-	if integ.Value != value {
-		t.Errorf("integ.Value not %d. got=%d", value, integ.Value)
-		return false
-	}
-
-	if integ.TokenLiteral() != fmt.Sprintf("%d", value) {
-		t.Errorf("integ.TokenLiteral not %d. got=%s", value,
-			integ.TokenLiteral())
-		return false
-	}
-
-	return true
-}
 
 func testIdentifier(t *testing.T, exp ast.Expression, value string) bool {
 	ident, ok := exp.(*ast.Identifier)
