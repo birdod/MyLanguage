@@ -221,60 +221,69 @@ fn test_integer_literal(e: &Expression, value: i32) -> bool {
 	}
 
 }
+
+#[test]
+fn test_parsing_infix_expression() {
+	let infix_tests = [
+		("5 + 5;", 5, "+", 5),
+		("5 - 5;", 5, "-", 5),
+		("5 * 5;", 5, "*", 5),
+		("5 / 5;", 5, "/", 5),
+		("5 > 5;", 5, ">", 5),
+		("5 < 5;", 5, "<", 5),
+		("5 == 5;", 5, "==", 5),
+		("5 != 5;", 5, "!=", 5),
+	];
+
+	for (input, left, operator, right) in infix_tests {
+		let l = lexer::Lexer::new(input.to_string());
+		let mut p = Parser::new(l);
+		let program = p.parse_program();
+		check_parser_error(&p);
+
+		if program.statements.len() != 1 {
+			println!("program.Statements does not contain {} statements. got={}\n",
+				1, program.statements.len())
+		}
+		match &program.statements[0] {
+			Statement::ExpressionStatement(es) => {
+				if !test_infix_expression(&es.expression, left, operator.to_string(), right){
+					return
+				}
+			}
+			_ => panic!("program.Statements[0] is not ast.ExpressionStatement.")
+		}
+
+
+	}
+}
+fn test_infix_expression(exp: &Expression, left: i32,
+	operator: String, right: i32) -> bool {
+	match exp {
+		Expression::InfixExpression(ie) => {
+			if !test_integer_literal(&ie.left, left) {
+				return false
+			}
+		
+			if ie.operator != operator {
+				println!("exp.Operator is not '{}'.", operator);
+				return false
+			}
+		
+			if !test_integer_literal(&ie.right, right) {
+				return false
+			}
+		}
+		_ => {
+			println!("exp is not ast.OperatorExpression.");
+			return false
+		}
+	}
+	return true
+}
 /*
 
 
-func TestParsingInfixExpressions(t *testing.T) {
-	infixTests := []struct {
-		input      string
-		leftValue  interface{}
-		operator   string
-		rightValue interface{}
-	}{
-		{"5 + 5;", 5, "+", 5},
-		{"5 - 5;", 5, "-", 5},
-		{"5 * 5;", 5, "*", 5},
-		{"5 / 5;", 5, "/", 5},
-		{"5 > 5;", 5, ">", 5},
-		{"5 < 5;", 5, "<", 5},
-		{"5 == 5;", 5, "==", 5},
-		{"5 != 5;", 5, "!=", 5},
-		{"foobar + barfoo;", "foobar", "+", "barfoo"},
-		{"foobar - barfoo;", "foobar", "-", "barfoo"},
-		{"foobar * barfoo;", "foobar", "*", "barfoo"},
-		{"foobar / barfoo;", "foobar", "/", "barfoo"},
-		{"foobar > barfoo;", "foobar", ">", "barfoo"},
-		{"foobar < barfoo;", "foobar", "<", "barfoo"},
-		{"foobar == barfoo;", "foobar", "==", "barfoo"},
-		{"foobar != barfoo;", "foobar", "!=", "barfoo"},
-		{"true == true", true, "==", true},
-		{"true != false", true, "!=", false},
-		{"false == false", false, "==", false},
-	}
-
-	for _, tt := range infixTests {
-		l := lexer.New(tt.input)
-		p := New(l)
-		program := p.ParseProgram()
-		checkParserErrors(t, p)
-
-		if len(program.Statements) != 1 {
-			t.Fatalf("program.Statements does not contain %d statements. got=%d\n",
-				1, len(program.Statements))
-		}
-
-		stmt, ok := program.Statements[0].(*ast.ExpressionStatement)
-		if !ok {
-			t.Fatalf("program.Statements[0] is not ast.ExpressionStatement. got=%T",
-				program.Statements[0])
-		}
-
-		if !testInfixExpression(t, stmt.Expression, tt.leftValue,
-			tt.operator, tt.rightValue) {
-			return
-		}
-	}
-}
 
 func TestOperatorPrecedenceParsing(t *testing.T) {
 	tests := []struct {
@@ -712,30 +721,7 @@ func TestCallExpressionParameterParsing(t *testing.T) {
 
 
 
-func testInfixExpression(t *testing.T, exp ast.Expression, left interface{},
-	operator string, right interface{}) bool {
 
-	opExp, ok := exp.(*ast.InfixExpression)
-	if !ok {
-		t.Errorf("exp is not ast.OperatorExpression. got=%T(%s)", exp, exp)
-		return false
-	}
-
-	if !testLiteralExpression(t, opExp.Left, left) {
-		return false
-	}
-
-	if opExp.Operator != operator {
-		t.Errorf("exp.Operator is not '%s'. got=%q", operator, opExp.Operator)
-		return false
-	}
-
-	if !testLiteralExpression(t, opExp.Right, right) {
-		return false
-	}
-
-	return true
-}
 
 func testLiteralExpression(
 	t *testing.T,

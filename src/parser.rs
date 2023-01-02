@@ -2,7 +2,7 @@
 mod parser_test;
 
 use std::{mem::swap, collections::HashMap};
-use crate::{ast::{self, Expression, Identifier, IntegerLiteral, PrefixExpression}, lexer, token};
+use crate::{ast::{self, Expression, Identifier, IntegerLiteral, PrefixExpression, InfixExpression}, lexer, token};
 
 type PrefixParseFn = fn(&mut Parser) -> ast::Expression;
 type InfixParseFn = fn(&mut Parser, ast::Expression) -> ast::Expression;
@@ -15,25 +15,47 @@ struct Parser {
     peek_token: token::Token,
 
     prefix_parse_fns: HashMap<token::TokenType, PrefixParseFn>,
-    infix_parse_fns: HashMap<token::TokenType, InfixParseFn>
+    infix_parse_fns: HashMap<token::TokenType, InfixParseFn>,
+
+    precedences: HashMap<token::TokenType, i32>
 }
 
 impl Parser {
     fn new(l: lexer::Lexer) -> Parser {
         let temp: HashMap<token::TokenType, PrefixParseFn> = HashMap::new();
         let temp2: HashMap<token::TokenType, InfixParseFn> = HashMap::new();
+        let precedences: HashMap<token::TokenType, i32> = HashMap::from([
+            (token::EQ.to_string(), EQUAL),
+            (token::NOT_EQ.to_string(), EQUAL),
+            (token::LT.to_string(), LESSGREATER),
+            (token::GT.to_string(), LESSGREATER),
+            (token::PLUS.to_string(), SUM),
+            (token::MINUS.to_string(), SUM),
+            (token::SLASH.to_string(), PRODUCT),
+            (token::ASTERLISK.to_string(), PRODUCT),
+        ]);
         let mut p = Parser{
             l:l, 
             errors: vec!(),
             cur_token: token::Token::empty_token(), 
             peek_token: token::Token::empty_token(),
             prefix_parse_fns: temp,
-            infix_parse_fns: temp2
+            infix_parse_fns: temp2,
+            precedences: precedences
         };
         p.register_prefixfn(token::IDENT.to_string(), Parser::parse_identifier);
         p.register_prefixfn(token::INT.to_string(), Parser::parse_integerliteral);
         p.register_prefixfn(token::MINUS.to_string(), Parser::parse_prefix_expression);
         p.register_prefixfn(token::BANG.to_string(), Parser::parse_prefix_expression);
+
+        p.register_infixfn(token::PLUS.to_string(), Parser::parse_infix_expression);
+        p.register_infixfn(token::MINUS.to_string(), Parser::parse_infix_expression);
+        p.register_infixfn(token::SLASH.to_string(), Parser::parse_infix_expression);
+        p.register_infixfn(token::ASTERLISK.to_string(), Parser::parse_infix_expression);
+        p.register_infixfn(token::LT.to_string(), Parser::parse_infix_expression);
+        p.register_infixfn(token::GT.to_string(), Parser::parse_infix_expression);
+        p.register_infixfn(token::EQ.to_string(), Parser::parse_infix_expression);
+        p.register_infixfn(token::NOT_EQ.to_string(), Parser::parse_infix_expression);
         p.next_token();
         p.next_token();
         p
@@ -51,6 +73,18 @@ impl Parser {
         swap(&mut self.peek_token, &mut self.cur_token);
         self.peek_token = self.l.next_token();
     }
+    fn parse_infix_expression(&mut self, left: Expression) -> Expression {
+        let mut exp = InfixExpression{
+                token: self.cur_token.clone(),
+                operator: self.cur_token.literal.clone(),
+                left: Box::new(left),
+                right: Box::new(Expression::Temp)
+            };
+        let precedence = self.cur_precedence();
+        self.next_token();
+        exp.right = Box::new(self.parse_expression(precedence).unwrap());
+        Expression::InfixExpression(exp)
+    }
 
     fn parse_prefix_expression(&mut self) -> ast::Expression {
         let temp = self.cur_token.clone();
@@ -64,6 +98,7 @@ impl Parser {
             }
         )
     }
+
     fn parse_identifier(&mut self) -> ast::Expression {
         ast::Expression::Identifier(Identifier{token: self.cur_token.clone(), value: self.cur_token.literal.clone()})
     }
@@ -75,16 +110,29 @@ impl Parser {
 
     fn parse_expression(&mut self, precednce: i32) -> Option<ast::Expression> {
         let prefix = self.prefix_parse_fns.get(&self.cur_token.r#type);
+        let mut leftexp;
         match prefix {
             Some(x) => {
-                let leftexp = x(self);
-                Some(leftexp)
+                leftexp = x(self);
             }
             None => {
                 self.no_prefix_parse_fn_error(self.cur_token.r#type.clone());
-                None
+                return None
             }
         }
+        while !self.peek_token_is(&token::SEMICOLON.to_string())&&(precednce<self.peek_precedence()) {
+            let infix = self.infix_parse_fns.get(&self.peek_token.r#type).cloned();
+            match infix {
+                Some(x) => {
+                    self.next_token();
+                    leftexp = x(self,leftexp);
+                }
+                None => {
+                    return Some(leftexp)
+                }
+            }
+        }
+        Some(leftexp)
     }
 
     fn parse_statement(&mut self) -> Option<ast::Statement> {
@@ -185,6 +233,20 @@ impl Parser {
         } else {
             self.peek_error(t);
             return false
+        }
+    }
+    fn peek_precedence(&self) -> i32 {
+        let temp = self.precedences.get(&self.peek_token.r#type);
+        match temp {
+            Some(x) => *x,
+            _ => LOWEST
+        }
+    }
+    fn cur_precedence(&self) -> i32 {
+        let temp = self.precedences.get(&self.cur_token.r#type);
+        match temp {
+            Some(x) => *x,
+            _ => LOWEST
         }
     }
     fn peek_error(&mut self, t: token::TokenType){

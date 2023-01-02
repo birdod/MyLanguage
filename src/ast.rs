@@ -28,7 +28,8 @@ pub enum Expression {
     Temp,
     Identifier(Identifier),
     IntegerLiteral(IntegerLiteral),
-    PrefixExpression(PrefixExpression)
+    PrefixExpression(PrefixExpression),
+    InfixExpression(InfixExpression)
 }
     pub struct Identifier {
         pub token: token::Token,
@@ -40,6 +41,12 @@ pub enum Expression {
     }
     pub struct PrefixExpression {
         pub token: token::Token,
+        pub operator: String,
+        pub right: Box<Expression>
+    }
+    pub struct InfixExpression {
+        pub token: token::Token,
+        pub left: Box<Expression>,
         pub operator: String,
         pub right: Box<Expression>
     }
@@ -119,10 +126,21 @@ impl Node for Expression {
             Expression::Identifier(id) => {id.token_literal()},
             Expression::IntegerLiteral(il) => {il.token.literal.clone()}
             Expression::PrefixExpression(pe) => {pe.token.literal.clone()}
+            Expression::InfixExpression(ie) => {ie.token.literal.clone()}
             _ => "".to_string()
         }
     }
     fn string(&self) -> String {
-        "".to_string()
+        let mut out = String::from("");
+        match self {
+            Expression::InfixExpression(ie) => {
+                out += "("; out += &ie.left.string();
+                out += " "; out += &ie.operator; out += " ";
+                out += &ie.right.string();
+                out += ")";
+                out
+            }
+            _=> out
+        }
     }
 }
