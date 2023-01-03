@@ -325,9 +325,10 @@ impl Parser {
     }
 
     fn parse_returnstatement(&mut self) -> Option<ast::ReturnStatement> {
-        let stmt = ast::ReturnStatement{token: self.cur_token.clone(), return_value:Expression::Temp};
+        let mut stmt = ast::ReturnStatement{token: self.cur_token.clone(), return_value:Expression::Temp};
         self.next_token();
-        while !self.cur_token_is(token::SEMICOLON.to_string()){
+        stmt.return_value = self.parse_expression(LOWEST).unwrap();
+        if self.peek_token_is(&token::SEMICOLON.to_string()){
             self.next_token();
         }
         Some(stmt)
@@ -338,16 +339,16 @@ impl Parser {
             return None
         }
         let iden = ast::Identifier{token: self.cur_token.clone(), value:self.cur_token.literal.clone()};
-        let stmt = ast::LetStatement{token: tok, name: iden, value:Expression::Temp};
+        let mut stmt = ast::LetStatement{token: tok, name: iden, value:Expression::Temp};
 
         if !self.expect_peek(token::ASSIGN.to_string()){
             return None
         }
-
-        //TODO : Implement expression handle
-        while !self.cur_token_is(token::SEMICOLON.to_string()){
-            self.next_token();
-        }
+        self.next_token();
+        stmt.value = self.parse_expression(LOWEST).unwrap();
+        if !self.expect_peek(token::SEMICOLON.to_string()){
+            return None
+        }    
 
         Some(stmt)
     }

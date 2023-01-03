@@ -9,31 +9,29 @@ use crate::utill::*;
 
 #[test]
 fn test_let_statements() {
-	let input =
-    "
-        let  x= 5;
-        let y = 10;
-        let foo =31231;
-    ";
+	let tests =
+    [
+		("let x = 5;", "x", 5.cover()),
+		("let y = true;", "y", true.cover()),
+		("let foobar = y;", "foobar", "y".to_string().cover()),
+	];
 
-    let l = lexer::Lexer::new(input.to_string());
-    let mut p = Parser::new(l);
-    let program = p.parse_program();
-	check_parser_error(&p);
+	for (input, ident, val) in tests{
+		let l = lexer::Lexer::new(input.to_string());
+		let mut p = Parser::new(l);
+		let program = p.parse_program();
+		check_parser_error(&p);
 
-    if program.statements.len() != 3 {
-        panic!("program.Statements does not contain 3 statements. got={}",
-            program.statements.len());
-    }
-    let test = ["x", "y", "foo"];
-	for (i,ident) in test.iter().enumerate() {
-		let stmt = &program.statements[i];
-		if !test_let_statement(stmt, ident.to_string()) {
+		if program.statements.len() != 1 {
+			panic!("program.Statements does not contain 3 statements. got={}",
+				program.statements.len());
+		}
+		if !test_let_statement(&program.statements[0], ident.to_string(), val) {
 			return
 		}
 	}
 }
-	fn test_let_statement(s: &ast::Statement, name: String) -> bool {
+	fn test_let_statement(s: &ast::Statement, name: String, val: Literal) -> bool {
 		if s.token_literal() != "let" {
 			println!("s.TokenLiteral not 'let'. got={}", s.token_literal());
 			return false
@@ -49,6 +47,9 @@ fn test_let_statements() {
 					println!("s.Name not {}. got={}", name, let_stmt.name.value);
 					return false
 				}
+				if !test_literal_expression(&let_stmt.value, &val){
+					return false
+				}
 				return true
 			}
 			_ => {
@@ -60,30 +61,33 @@ fn test_let_statements() {
 
 #[test]
 fn test_return_statements() {
-	let input =
-    "
-        return 5;
-        return 10;
-    ";
+	let tests = [
+		("return 5;", 5.cover()),
+		("return true;", true.cover()),
+		("return foobar;", "foobar".to_string().cover()),
+	];
 
-    let l = lexer::Lexer::new(input.to_string());
-    let mut p = Parser::new(l);
-    let program = p.parse_program();
-	check_parser_error(&p);
+	for (input, val) in tests{
+		let l = lexer::Lexer::new(input.to_string());
+		let mut p = Parser::new(l);
+		let program = p.parse_program();
+		check_parser_error(&p);
 
-    if program.statements.len() != 2 {
-        panic!("program.Statements does not contain 2 statements. got={}",
-            program.statements.len());
-    }
-	for stmt in program.statements {
-		if stmt.token_literal() != "return" {
-			println!("s.TokenLiteral not 'return'. got={}", stmt.token_literal());
-			return
+		if program.statements.len() != 1 {
+			panic!("program.Statements does not contain 1 statements. got={}",
+				program.statements.len());
 		}
-		match stmt {
-			Statement::ReturnStatement(_) => (),
-			_ => {
-				println!("s not *ast.ReturnStatement");
+		for stmt in program.statements {
+			if stmt.token_literal() != "return" {
+				println!("s.TokenLiteral not 'return'. got={}", stmt.token_literal());
+				return
+			}
+			match stmt {
+				Statement::ReturnStatement(rs) => 
+					if test_literal_expression(&rs.return_value, &val){
+						return
+					}
+				_ => println!("s not *ast.ReturnStatement")
 			}
 		}
 	}
@@ -217,7 +221,7 @@ fn test_parsing_prefix_expression() {
 							panic!("exp.Operator is not '{}'. got={}",
 								operator, pe.operator)
 						}
-						if !test_literal_expression(&pe.right, value) {
+						if !test_literal_expression(&pe.right, &value) {
 							return
 						}
 					}
@@ -278,7 +282,7 @@ fn test_parsing_infix_expression() {
 	fn test_infix_expression(exp: &Expression, left: Literal, operator: String, right: Literal) -> bool {
 		match exp {
 			Expression::InfixExpression(ie) => {
-				if !test_literal_expression(&ie.left, left) {
+				if !test_literal_expression(&ie.left, &left) {
 					return false
 				}
 			
@@ -287,7 +291,7 @@ fn test_parsing_infix_expression() {
 					return false
 				}
 			
-				if !test_literal_expression(&ie.right, right) {
+				if !test_literal_expression(&ie.right, &right) {
 					return false
 				}
 			}
@@ -390,18 +394,18 @@ fn test_operator_precedence_parsing() {
 			"!(true == true)",
 			"(!(true == true))",
 		],
-		// [
-		// 	"a + add(b * c) + d",
-		// 	"((a + add((b * c))) + d)",
-		// ],
-		// [
-		// 	"add(a, b, 1, 2 * 3, 4 + 5, add(6, 7 * 8))",
-		// 	"add(a, b, 1, (2 * 3), (4 + 5), add(6, (7 * 8)))",
-		// ],
-		// [
-		// 	"add(a + b + c * d / f + g)",
-		// 	"add((((a + b) + ((c * d) / f)) + g))",
-		// ],
+		[
+			"a + add(b * c) + d",
+			"((a + add((b * c))) + d)",
+		],
+		[
+			"add(a, b, 1, 2 * 3, 4 + 5, add(6, 7 * 8))",
+			"add(a, b, 1, (2 * 3), (4 + 5), add(6, (7 * 8)))",
+		],
+		[
+			"add(a + b + c * d / f + g)",
+			"add((((a + b) + ((c * d) / f)) + g))",
+		],
 	];
 
 	for [input, expected] in tests {
@@ -615,7 +619,7 @@ fn test_call_expression_parsing() {
 					if ce.arguments.len() != 3{
 						panic!("wrong length of arguments. got={}", ce.arguments.len())
 					}
-					test_literal_expression(&ce.arguments[0], 1.cover());
+					test_literal_expression(&ce.arguments[0], &1.cover());
 					test_infix_expression(&ce.arguments[1], 2.cover(), "*".to_string(), 3.cover());
 					test_infix_expression(&ce.arguments[2], 4.cover(), "+".to_string(), 5.cover());
 				}
@@ -678,16 +682,16 @@ fn test_call_expression_parameter_parsing() {
 }
 
 
-fn test_literal_expression(exp: &Expression, expected: Literal,) -> bool {
+fn test_literal_expression(exp: &Expression, expected: &Literal) -> bool {
 	match expected{
 		Literal::Int(i) => {
-			return test_integer_literal(&exp, i);
+			return test_integer_literal(&exp, *i);
 		},
 		Literal::String(s) => {
-			return test_identifier(exp, s);
+			return test_identifier(exp, s.to_string());
 		},
 		Literal::Bool(b) => {
-			return test_boolean_literal(exp, b);
+			return test_boolean_literal(exp, *b);
 		}
 	}
 }
