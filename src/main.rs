@@ -2,7 +2,7 @@ mod token;
 mod lexer;
 mod repl;
 mod ast;
-mod parser;
+mod parser; mod utill;
 
 fn main() {
     println!("start repl");

@@ -2,7 +2,7 @@
 mod parser_test;
 
 use std::{mem::swap, collections::HashMap};
-use crate::{ast::{self, Expression, Identifier, IntegerLiteral, PrefixExpression, InfixExpression}, lexer, token};
+use crate::{ast::{self, Expression, Identifier, IntegerLiteral, PrefixExpression, InfixExpression, IfExpression, FunctionLiteral}, lexer, token};
 
 type PrefixParseFn = fn(&mut Parser) -> ast::Expression;
 type InfixParseFn = fn(&mut Parser, ast::Expression) -> ast::Expression;
@@ -33,6 +33,7 @@ impl Parser {
             (token::MINUS.to_string(), SUM),
             (token::SLASH.to_string(), PRODUCT),
             (token::ASTERLISK.to_string(), PRODUCT),
+            (token::LPAREN.to_string(), CALL),
         ]);
         let mut p = Parser{
             l:l, 
@@ -47,6 +48,11 @@ impl Parser {
         p.register_prefixfn(token::INT.to_string(), Parser::parse_integerliteral);
         p.register_prefixfn(token::MINUS.to_string(), Parser::parse_prefix_expression);
         p.register_prefixfn(token::BANG.to_string(), Parser::parse_prefix_expression);
+        p.register_prefixfn(token::TRUE.to_string(), Parser::parse_booleanliteral);
+        p.register_prefixfn(token::FALSE.to_string(), Parser::parse_booleanliteral);
+        p.register_prefixfn(token::LPAREN.to_string(), Parser::parse_grouped_expression);
+        p.register_prefixfn(token::IF.to_string(), Parser::parse_if_expression);
+        p.register_prefixfn(token::FUNCTION.to_string(), Parser::parse_functionliteral);
 
         p.register_infixfn(token::PLUS.to_string(), Parser::parse_infix_expression);
         p.register_infixfn(token::MINUS.to_string(), Parser::parse_infix_expression);
@@ -56,6 +62,7 @@ impl Parser {
         p.register_infixfn(token::GT.to_string(), Parser::parse_infix_expression);
         p.register_infixfn(token::EQ.to_string(), Parser::parse_infix_expression);
         p.register_infixfn(token::NOT_EQ.to_string(), Parser::parse_infix_expression);
+        p.register_infixfn(token::LPAREN.to_string(), Parser::parse_call_expression);
         p.next_token();
         p.next_token();
         p
@@ -73,6 +80,142 @@ impl Parser {
         swap(&mut self.peek_token, &mut self.cur_token);
         self.peek_token = self.l.next_token();
     }
+
+    fn parse_call_expression(&mut self, func: Expression) -> Expression {
+        let tok = self.cur_token.clone();
+        let args = self.parse_call_arguments();
+        Expression::CallExpression(ast::CallExpression{
+            token: tok,
+            function: Box::new(func),
+            arguments: args
+        }
+        )
+    }
+    
+    fn parse_call_arguments(&mut self) -> Vec<Expression> {
+        let mut v = Vec::new();
+        self.next_token();
+        if self.cur_token_is(token::RPAREN.to_string()){
+            return v
+        }
+        v.push(self.parse_expression(LOWEST).unwrap());
+        if self.peek_token_is(&token::RPAREN.to_string()){
+            self.next_token();
+            return v
+        }
+        self.next_token();
+        while self.cur_token_is(token::COMMA.to_string()) {
+            self.next_token();
+            v.push(self.parse_expression(LOWEST).unwrap());
+            self.next_token();
+        }
+
+        if !self.cur_token_is(token::RPAREN.to_string()){
+            panic!("parenthesis mismatch from paramlist, now: {}",self.cur_token.r#type)
+        }
+        v
+    }
+
+    fn parse_function_parameters(&mut self) -> Vec<Identifier> {
+        let mut v = Vec::new();
+        self.next_token();
+        if self.cur_token_is(token::RPAREN.to_string()){
+            return v
+        }
+        match self.parse_identifier() {
+            Expression::Identifier(temp) => v.push(temp),
+            _ => panic!("not identifier")
+        }
+        if self.peek_token_is(&token::RPAREN.to_string()){
+            self.next_token();
+            return v
+        }
+        self.next_token();
+        while self.cur_token_is(token::COMMA.to_string()) {
+            self.next_token();
+            match self.parse_identifier() {
+                Expression::Identifier(temp) => v.push(temp),
+                _ => panic!("not identifier")
+            }
+            self.next_token();
+        }
+
+        if !self.cur_token_is(token::RPAREN.to_string()){
+            panic!("parenthesis mismatch from paramlist, now: {}",self.cur_token.r#type)
+        }
+        v
+    }
+    fn parse_functionliteral(&mut self) -> ast::Expression {
+        let tok = self.cur_token.clone();
+        if !self.expect_peek(token::LPAREN.to_string()) {
+            panic!("require parenthesis for argument lisst")
+        }
+        let params = self.parse_function_parameters();
+        if !self.expect_peek(token::LBRACE.to_string()) {
+            panic!("requrire brace for function body")
+        }
+        let body = self.parse_block_statements();
+        let exp = FunctionLiteral{
+            token: tok,
+            parameters: params,
+            body: Box::new(body)
+        };
+        Expression::FunctionLiteral(exp)
+    }
+
+    fn parse_block_statements(&mut self) -> ast::BlockStatement{
+        let mut bs = ast::BlockStatement{token: self.cur_token.clone(),statements: Vec::new()};
+        self.next_token();
+        while !self.cur_token_is(token::RBRACE.to_string()) {
+            let stmt = self.parse_statement();
+            match stmt {
+                Some(s) => bs.statements.push(s),
+                _ => ()
+            }
+            self.next_token();
+        }
+        bs
+    }
+
+    fn parse_if_expression(&mut self) -> ast::Expression {
+        let tok = self.cur_token.clone();
+        if !self.expect_peek(token::LPAREN.to_string()) {
+            panic!("require condition parenthesis")
+        }
+        self.next_token();
+        let cond = self.parse_expression(LOWEST).unwrap();
+        if !self.expect_peek(token::RPAREN.to_string()) {
+            panic!("require condition parenthesis")
+        }
+        if !self.expect_peek(token::LBRACE.to_string()) {
+            panic!("require blocking brace")
+        }
+        let consequence = self.parse_block_statements();
+        let mut exp = IfExpression{
+            token: tok, condition: Box::new(cond), consequence:Box::new(consequence), alternative: None};
+        if self.peek_token_is(&token::ELSE.to_string()) {
+            self.next_token();
+            if !self.expect_peek(token::LBRACE.to_string()) {
+                panic!("require blocking brace")
+            }
+            exp.alternative = Some(Box::new(self.parse_block_statements()));
+         }
+        Expression::IfExpression(exp)
+    }
+
+    fn parse_grouped_expression(&mut self) -> ast::Expression{
+        self.next_token();
+        let exp = self.parse_expression(LOWEST);
+        if !self.expect_peek(token::RPAREN.to_string()){
+            self.errors.push("parenthesis mismatch".to_string());
+        }
+        return exp.unwrap()
+    }
+
+    fn parse_booleanliteral(&mut self) -> ast::Expression {
+        ast::Expression::BooleanLiteral(
+            ast::BooleanLiteral{token:self.cur_token.clone(), value: self.cur_token_is(token::TRUE.to_string())})
+    }
     fn parse_infix_expression(&mut self, left: Expression) -> Expression {
         let mut exp = InfixExpression{
                 token: self.cur_token.clone(),
@@ -82,7 +225,11 @@ impl Parser {
             };
         let precedence = self.cur_precedence();
         self.next_token();
-        exp.right = Box::new(self.parse_expression(precedence).unwrap());
+        let temp = self.parse_expression(precedence);
+        match temp {
+            Some(x) => exp.right = Box::new(x),
+            None => ()
+        }
         Expression::InfixExpression(exp)
     }
 
