@@ -1,3 +1,6 @@
-# Reference
-based on "Interpreter in Go",
-extended OOP, type system and ..
+
+언어설계부터 타입채킹이 어려울거같다...
+
+다시만들어야됨..
+
+

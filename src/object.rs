@@ -1,42 +1,43 @@
-use crate::token::INT;
 
 
 type ObjectType = String;
 
-enum Object {
-    Integer(Integer),
-    Boolean(Boolean),
-    Null
+trait Object {
+    fn r#type(&self) -> ObjectType;
+    fn inspect(&self) -> String;
 }
 
-struct Integer {
+pub struct Integer {
     value: i32
 }
-struct Boolean {
+pub struct Boolean {
     value: bool
 }
 
-impl Object {
+impl Object for Integer {
     fn r#type(&self) -> ObjectType {  
-        match self{
-            Object::Integer(_) =>  INTEGER_OBJ.to_string(),
-            Object::Boolean(_) =>  BOOLEAN_OBJ.to_string(),
-            Object::Null =>  NULL_OBJ.to_string()
-
-        }  
+        INTEGER_OBJ.to_string()
     }
     fn inspect(&self) -> String {
-        match self{
-            Object::Integer(i) =>  format!("{}",i.value),
-            Object::Boolean(b) =>  format!("{}",b.value),
-            Object::Null =>  format!("") 
-        }
+        format!("{}",self.value)
     }
 }
-
+impl Object for Boolean {
+    fn r#type(&self) -> ObjectType {  
+        BOOLEAN_OBJ.to_string()
+    }
+    fn inspect(&self) -> String {
+        format!("{}",self.value)
+    }
+}
 
 
 
 pub const INTEGER_OBJ: &str = "INTEGER";
 pub const BOOLEAN_OBJ: &str = "BOOLEAN";
-pub const NULL_OBJ: &str = "NULL";
+
+fn main(test: &impl Object) {
+    match test.r#type() {
+        Integer => ()
+    }
+}

@@ -2,7 +2,7 @@
 mod parser_test;
 
 use std::{mem::swap, collections::HashMap};
-use crate::{ast::{self, Expression, Identifier, IntegerLiteral, PrefixExpression, InfixExpression, IfExpression, FunctionLiteral}, lexer, token};
+use crate::{ast, lexer, token};
 
 type PrefixParseFn = fn(&mut Parser) -> ast::Expression;
 type InfixParseFn = fn(&mut Parser, ast::Expression) -> ast::Expression;
@@ -91,7 +91,6 @@ impl Parser {
         }
         )
     }
-    
     fn parse_call_arguments(&mut self) -> Vec<Expression> {
         let mut v = Vec::new();
         self.next_token();
